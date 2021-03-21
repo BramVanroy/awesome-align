@@ -173,7 +173,7 @@ if __name__ == "__main__":
     assert len(source) == len(target), "Length of source and target does not match"
     assert (not args.cleanPunctuation) or len(source) > 0, "To clean punctuation alignments, specify a source and target text file"
 
-    with open(args.reference, 'r') as f:
+    with open(args.reference, 'r', encoding="utf-8") as f:
         for line in f:
             sure.append(set())
             possible.append(set())
@@ -188,7 +188,7 @@ if __name__ == "__main__":
                 if sure_alignment or not args.ignorePossible:
                     possible[-1].add(alignment_tuple)
 
-    with open(args.hypothesis, 'r') as f:
+    with open(args.hypothesis, 'r', encoding="utf-8") as f:
         for line in f:
             hypothesis.append(set())
 
