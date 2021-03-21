@@ -207,7 +207,7 @@ def train(args, train_dataset, model: PreTrainedModel, tokenizer: PreTrainedToke
                 
             # [pos, neg] pair
             rd = random.random()
-            if rd> 0.75:
+            if rd > 0.75:
                 neg_srctgt = torch.cat([half_src_id, neg_half_tgt_id])
             elif rd > 0.5:
                 neg_srctgt = torch.cat([neg_half_src_id, half_tgt_id])
@@ -243,7 +243,7 @@ def train(args, train_dataset, model: PreTrainedModel, tokenizer: PreTrainedToke
     )
 
     t_total = len(train_dataloader) // args.gradient_accumulation_steps * args.num_train_epochs
-    if args.max_steps > 0 and args.max_steps < t_total:
+    if args.max_steps > 0:
         t_total = args.max_steps
         args.num_train_epochs = args.max_steps // (len(train_dataloader) // args.gradient_accumulation_steps) + 1
     
@@ -724,11 +724,7 @@ def main():
     args.device = device
 
     # Setup logging
-    logging.basicConfig(
-        format="%(asctime)s - %(levelname)s - %(name)s -   %(message)s",
-        datefmt="%m/%d/%Y %H:%M:%S",
-        level=logging.INFO if args.local_rank in [-1, 0] else logging.WARN,
-    )
+    logger.setLevel(logging.INFO if args.local_rank in [-1, 0] else logging.WARN)
     logger.warning(
         "Process rank: %s, device: %s, n_gpu: %s, distributed training: %s, 16-bits training: %s",
         args.local_rank,
@@ -747,13 +743,6 @@ def main():
 
     config_class, model_class, tokenizer_class = BertConfig, BertForMaskedLM, BertTokenizer
 
-    if args.config_name:
-        config = config_class.from_pretrained(args.config_name, cache_dir=cache_dir)
-    elif args.model_name_or_path:
-        config = config_class.from_pretrained(args.model_name_or_path, cache_dir=cache_dir)
-    else:
-        config = config_class()
-
     if args.tokenizer_name:
         tokenizer = tokenizer_class.from_pretrained(args.tokenizer_name, cache_dir=cache_dir)
     elif args.model_name_or_path:
@@ -764,9 +753,8 @@ def main():
             "and load it from here, using --tokenizer_name".format(tokenizer_class.__name__)
         )
 
-    modeling.PAD_ID = tokenizer.pad_token_id
-    modeling.CLS_ID = tokenizer.cls_token_id
-    modeling.SEP_ID = tokenizer.sep_token_id
+    config = config_class.from_pretrained(args.model_name_or_path,
+                                          cache_dir=cache_dir)
 
     if args.block_size <= 0:
         args.block_size = tokenizer.max_len
@@ -777,6 +765,8 @@ def main():
     if args.model_name_or_path:
         model = model_class.from_pretrained(
             args.model_name_or_path,
+            tokenizer.cls_token_id,
+            tokenizer.sep_token_id,
             from_tf=bool(".ckpt" in args.model_name_or_path),
             config=config,
             cache_dir=cache_dir,
@@ -804,7 +794,7 @@ def main():
         global_step, tr_loss = train(args, train_dataset, model, tokenizer)
         logger.info(" global_step = %s, average loss = %s", global_step, tr_loss)
 
-        if args.local_rank == -1 or torch.distributed.get_rank() == 0:
+        if args.local_rank in [-1, 0]:
             logger.info("Saving trained model checkpoint to %s", args.output_dir)
             os.makedirs(args.output_dir, exist_ok=True)
             model_to_save = (

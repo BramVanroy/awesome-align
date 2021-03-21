@@ -192,13 +192,11 @@ def main():
             "and load it from here, using --tokenizer_name".format(tokenizer_class.__name__)
         )
 
-    modeling.PAD_ID = tokenizer.pad_token_id
-    modeling.CLS_ID = tokenizer.cls_token_id
-    modeling.SEP_ID = tokenizer.sep_token_id
-
     if args.model_name_or_path:
         model = model_class.from_pretrained(
             args.model_name_or_path,
+            tokenizer.cls_token_id,
+            tokenizer.sep_token_id,
             from_tf=bool(".ckpt" in args.model_name_or_path),
             config=config,
             cache_dir=cache_dir,

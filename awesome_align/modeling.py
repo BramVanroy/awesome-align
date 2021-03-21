@@ -32,9 +32,9 @@ from awesome_align.file_utils import add_start_docstrings, add_start_docstrings_
 from awesome_align.modeling_utils import PreTrainedModel
 from awesome_align.sparsemax import sparsemax, entmax15
 
-PAD_ID=0
-CLS_ID=101
-SEP_ID=102
+PAD_ID = 0
+CLS_ID = 101
+SEP_ID = 102
 
 logger = logging.getLogger(__name__)
 
@@ -507,7 +507,7 @@ class BertModel(BertPreTrainedModel):
 
         if attention_mask is None:
             attention_mask = torch.ones(input_shape, device=device)
-            attention_mask[input_ids==PAD_ID] = 0
+            attention_mask[input_ids==self.config.pad_token_id] = 0
 
         token_type_ids = torch.zeros(input_shape, dtype=torch.long, device=device)
 
@@ -526,8 +526,11 @@ class BertModel(BertPreTrainedModel):
         return encoder_outputs
 
 class BertGuideHead(nn.Module):
-    def __init__(self, config):
+    def __init__(self, pad_token_id, cls_token_id, sep_token_id):
         super().__init__()
+        self.pad_token_id = pad_token_id
+        self.cls_token_id = cls_token_id
+        self.sep_token_id = sep_token_id
 
     def transpose_for_scores(self, x):
         new_x_shape = x.size()[:-1] + (1, x.size(-1))
@@ -543,8 +546,8 @@ class BertGuideHead(nn.Module):
         train_so=True, train_co=False,
     ):
         #mask
-        attention_mask_src = ( (inputs_src==PAD_ID) + (inputs_src==CLS_ID) + (inputs_src==SEP_ID) ).float()
-        attention_mask_tgt = ( (inputs_tgt==PAD_ID) + (inputs_tgt==CLS_ID) + (inputs_tgt==SEP_ID) ).float()
+        attention_mask_src = ( (inputs_src==self.pad_token_id) + (inputs_src==self.cls_token_id) + (inputs_src==self.sep_token_id) ).float()
+        attention_mask_tgt = ( (inputs_tgt==self.pad_token_id) + (inputs_tgt==self.cls_token_id) + (inputs_tgt==self.sep_token_id) ).float()
         len_src = torch.sum(1-attention_mask_src, -1)
         len_tgt = torch.sum(1-attention_mask_tgt, -1)
         attention_mask_src = return_extended_attention_mask(1-attention_mask_src, hidden_states_src.dtype)
@@ -590,13 +593,16 @@ class BertGuideHead(nn.Module):
 
 @add_start_docstrings("""Bert Model with a `language modeling` head on top. """, BERT_START_DOCSTRING)
 class BertForMaskedLM(BertPreTrainedModel):
-    def __init__(self, config):
+    def __init__(self, config, cls_token_id, sep_token_id):
         super().__init__(config)
         self.bert = BertModel(config)
         self.cls = BertMLMHead(config)
         self.psi_cls = BertPSIHead(config)
-        self.guide_layer = BertGuideHead(config)
+        self.guide_layer = BertGuideHead(self.config.pad_token_id, cls_token_id, sep_token_id)
         self.init_weights()
+        self.pad_token_id = self.config.pad_token_id
+        self.cls_token_id = cls_token_id
+        self.sep_token_id = sep_token_id
 
     @add_start_docstrings_to_callable(BERT_INPUTS_DOCSTRING)
     def forward(
@@ -661,12 +667,12 @@ class BertForMaskedLM(BertPreTrainedModel):
             outputs_src = self.bert(
                 inputs_src,
                 align_layer=align_layer,
-                attention_mask=(inputs_src!=PAD_ID),
+                attention_mask=(inputs_src!=self.pad_token_id),
             )
             outputs_tgt = self.bert(
                 inputs_tgt,
                 align_layer=align_layer,
-                attention_mask=(inputs_tgt!=PAD_ID),
+                attention_mask=(inputs_tgt!=self.pad_token_id),
             )
 
             attention_probs_inter = self.guide_layer(outputs_src, outputs_tgt, inputs_src, inputs_tgt, extraction=extraction, softmax_threshold=softmax_threshold)
@@ -678,7 +684,7 @@ class BertForMaskedLM(BertPreTrainedModel):
 
         for idx, (attention, b2w_src, b2w_tgt) in enumerate(zip(attention_probs_inter, bpe2word_map_src, bpe2word_map_tgt)):
             aligns = set()
-            non_zeros = torch.nonzero(attention)
+            non_zeros = torch.nonzero(attention, as_tuple=False)
             for i, j in non_zeros:
                 aligns.add( (b2w_src[i], b2w_tgt[j]) )
             word_aligns.append(aligns)
