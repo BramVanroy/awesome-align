@@ -102,15 +102,14 @@ def word_align(args, model: PreTrainedModel, tokenizer: PreTrainedTokenizer):
     tqdm_iterator = trange(dataset.__len__(), desc="Extracting")
     with open(args.output_file, 'w') as writer:
         for batch in dataloader:
-            with torch.no_grad():
-                ids_src, ids_tgt, bpe2word_map_src, bpe2word_map_tgt = batch
-                word_aligns_list = model.get_aligned_word(ids_src, ids_tgt, bpe2word_map_src, bpe2word_map_tgt, args.device, 0, 0, align_layer=args.align_layer, extraction=args.extraction, softmax_threshold=args.softmax_threshold, test=True)
-                for word_aligns in word_aligns_list:
-                    output_str = []
-                    for word_align in word_aligns:
-                        output_str.append(f'{word_align[0]}-{word_align[1]}')
-                    writer.write(' '.join(output_str)+'\n')
-                tqdm_iterator.update(len(ids_src))
+            ids_src, ids_tgt, bpe2word_map_src, bpe2word_map_tgt = batch
+            word_aligns_list = model.get_aligned_word(ids_src, ids_tgt, bpe2word_map_src, bpe2word_map_tgt, args.device, 0, 0, align_layer=args.align_layer, extraction=args.extraction, softmax_threshold=args.softmax_threshold, test=True)
+            for word_aligns in word_aligns_list:
+                output_str = []
+                for word_align in word_aligns:
+                    output_str.append(f'{word_align[0]}-{word_align[1]}')
+                writer.write(' '.join(output_str)+'\n')
+            tqdm_iterator.update(len(ids_src))
 
 
 def main():
