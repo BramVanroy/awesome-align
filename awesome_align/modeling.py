@@ -663,7 +663,7 @@ class BertForMaskedLM(BertPreTrainedModel):
         inputs_src = inputs_src.to(dtype=torch.long, device=device).clone()
         inputs_tgt = inputs_tgt.to(dtype=torch.long, device=device).clone()
 
-        with torch.no_grad():
+        with (torch.inference_mode() if hasattr(torch, "inference_mode") and test else torch.no_grad()):
             outputs_src = self.bert(
                 inputs_src,
                 align_layer=align_layer,
